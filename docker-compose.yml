@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: petpocketbook
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d petpocketbook"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      RAILS_ENV: production
+      DATABASE_URL: postgres://postgres:postgres@db:5432/petpocketbook
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-local-docker-secret-key-base-change-me-in-production}
+      PETPOCKETBOOK_API_KEY: ${PETPOCKETBOOK_API_KEY:-jQkI63suJhqd3DtL}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

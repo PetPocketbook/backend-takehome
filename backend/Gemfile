@@ -6,10 +6,7 @@ ruby "3.1.2"
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 7.0.10"
 
-# Use sqlite3 as the database for Active Record
-gem "sqlite3", "~> 1.4", group: %i[development test]
-
-gem "pg", "~> 1.5", group: :production
+gem "pg", "~> 1.5"
 
 gem "faraday", "~> 2.9"
 gem "rack-cors"

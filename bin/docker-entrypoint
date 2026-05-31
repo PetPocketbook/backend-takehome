@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd /app/backend
+
+echo "Preparing database..."
+bundle exec rails db:prepare
+
+exec "$@"

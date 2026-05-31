@@ -1,5 +1,7 @@
 class SpaController < ApplicationController
+  FRONTEND_INDEX = Rails.root.join("public/frontend/index.html")
+
   def show
-    render file: Rails.public_path.join("frontend", "index.html"), layout: false
+    render html: File.read(FRONTEND_INDEX).html_safe, layout: false
   end
 end
