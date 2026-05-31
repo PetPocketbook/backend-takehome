@@ -1,0 +1,18 @@
+{
+  "name": "petpocketbook-scheduler",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "frontend:install": "npm --prefix frontend install",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "build": "npm run frontend:install && npm run frontend:build && npm run copy:frontend",
+    "copy:frontend": "rm -rf backend/public/frontend && mkdir -p backend/public/frontend && cp -R frontend/dist/. backend/public/frontend/",
+    "server": "cd backend && bundle exec rails server -p ${PORT:-3000}",
+    "dev": "concurrently -k -n server,frontend -c blue,magenta \"npm run server\" \"npm run frontend:dev\"",
+    "start:prod": "npm run build && SERVE_SPA=true npm run server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

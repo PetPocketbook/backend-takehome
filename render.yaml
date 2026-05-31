@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: petpocketbook-scheduler
+    runtime: ruby
+    plan: free
+    buildCommand: ./bin/render-build.sh
+    startCommand: cd backend && bundle exec rails server -p $PORT -e production
+    healthCheckPath: /api/schedule?date=2026-01-01
+    envVars:
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "true"
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: petpocketbook-scheduler-db
+          property: connectionString
+
+databases:
+  - name: petpocketbook-scheduler-db
+    plan: free
