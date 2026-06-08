@@ -9,14 +9,32 @@ class Appointment
   end
 
   def self.from_upstream(raw)
-    raise NotImplementedError
+    pet = raw.fetch("pet")
+
+    new(
+      id: SecureRandom.uuid,
+      pet_name: pet.fetch("name"),
+      pet_type: pet.fetch("type"),
+      time: raw.fetch("time")
+    )
   end
 
   def self.from_storage(raw)
-    raise NotImplementedError
+    pet = raw.fetch("pet")
+
+    new(
+      id: raw.fetch("id"),
+      pet_name: pet.fetch("name"),
+      pet_type: pet.fetch("type"),
+      time: raw.fetch("time")
+    )
   end
 
   def to_h
-    raise NotImplementedError
+    {
+      "id" => id,
+      "pet" => { "name" => pet_name, "type" => pet_type },
+      "time" => time
+    }
   end
 end
