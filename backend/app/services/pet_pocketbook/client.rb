@@ -35,8 +35,17 @@ module PetPocketbook
       raise UpstreamError, "PetPocketbook returned an error." unless response.success?
       raise UpstreamError, "PetPocketbook response was malformed." unless response.body.is_a?(Hash)
       raise UpstreamError, "PetPocketbook response was malformed." unless response.body["appointments"].is_a?(Array)
+      raise UpstreamError, "PetPocketbook response was malformed." unless response.body["appointments"].all? { |appointment| valid_appointment?(appointment) }
 
       response.body
+    end
+
+    def valid_appointment?(appointment)
+      appointment.is_a?(Hash) &&
+        appointment["pet"].is_a?(Hash) &&
+        appointment.dig("pet", "name").is_a?(String) &&
+        appointment.dig("pet", "type").is_a?(String) &&
+        appointment["time"].is_a?(String)
     end
 
     def default_connection

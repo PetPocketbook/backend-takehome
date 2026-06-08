@@ -37,6 +37,22 @@ RSpec.describe PetPocketbook::Client do
       )
     end
 
+    it "raises an upstream error for malformed appointments" do
+      response = instance_double(
+        Faraday::Response,
+        success?: true,
+        body: { "appointments" => [{ "pet" => { "name" => "Briar" }, "time" => "12:30 PM" }] }
+      )
+      connection = instance_double(Faraday::Connection)
+      allow(connection).to receive(:get).and_return(response)
+      client = described_class.new(connection: connection)
+
+      expect { client.fetch_schedule }.to raise_error(
+        PetPocketbook::Client::UpstreamError,
+        "PetPocketbook response was malformed."
+      )
+    end
+
     it "raises an upstream error for network failures" do
       connection = instance_double(Faraday::Connection)
       allow(connection).to receive(:get).and_raise(Faraday::ConnectionFailed.new("failed"))

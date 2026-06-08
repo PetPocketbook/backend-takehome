@@ -106,6 +106,20 @@ RSpec.describe "Schedules API", type: :request do
       expect(JSON.parse(response.body)).to eq("error" => "PetPocketbook is unavailable")
       expect(Schedule.find_by(date: Date.new(2026, 6, 11))).to be_nil
     end
+
+    it "maps malformed upstream appointments to Bad Gateway without persisting a Schedule" do
+      client = instance_double(PetPocketbook::Client)
+      allow(client).to receive(:fetch_schedule).and_raise(
+        PetPocketbook::Client::UpstreamError.new("PetPocketbook response was malformed.")
+      )
+      allow(PetPocketbook::Client).to receive(:new).and_return(client)
+
+      get "/api/schedule", params: { date: "2026-06-23" }
+
+      expect(response).to have_http_status(:bad_gateway)
+      expect(JSON.parse(response.body)).to eq("error" => "PetPocketbook response was malformed.")
+      expect(Schedule.find_by(date: Date.new(2026, 6, 23))).to be_nil
+    end
   end
 
   describe "PUT /api/schedule" do
