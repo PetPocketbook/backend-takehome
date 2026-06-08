@@ -3,6 +3,8 @@ set -euo pipefail
 
 cd /app/backend
 
+mkdir -p tmp/pids
+
 echo "Preparing database..."
 bundle exec rails db:prepare
 
