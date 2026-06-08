@@ -281,4 +281,99 @@ RSpec.describe "Schedules API", type: :request do
       expect(schedule.reload.appointments).to eq(original_appointments)
     end
   end
+
+  describe "DELETE /api/schedule/:appointment_id" do
+    it "removes an Appointment from the requested Schedule" do
+      remaining_appointment = {
+        "id" => "remaining-appointment",
+        "pet" => { "name" => "Milla", "type" => "Rodent" },
+        "time" => "5:00 PM"
+      }
+      schedule = create(
+        :schedule,
+        date: Date.new(2026, 6, 19),
+        appointments: [
+          {
+            "id" => "deleted-appointment",
+            "pet" => { "name" => "Briar", "type" => "Hedgehog" },
+            "time" => "12:30 PM"
+          },
+          remaining_appointment
+        ]
+      )
+
+      delete "/api/schedule/deleted-appointment", params: { date: "2026-06-19" }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to eq(
+        "date" => "2026-06-19",
+        "appointments" => [remaining_appointment]
+      )
+      expect(schedule.reload.appointments).to eq([remaining_appointment])
+    end
+
+    it "returns the unchanged Schedule for an unknown Appointment ID" do
+      schedule = create(:schedule, date: Date.new(2026, 6, 20))
+      original_appointments = schedule.appointments
+
+      delete "/api/schedule/unknown-appointment", params: { date: "2026-06-20" }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to eq(
+        "date" => "2026-06-20",
+        "appointments" => original_appointments
+      )
+      expect(schedule.reload.appointments).to eq(original_appointments)
+    end
+
+    it "returns not found when deleting from a date without a Schedule" do
+      allow(ScheduleSeeder).to receive(:new)
+
+      delete "/api/schedule/missing-appointment", params: { date: "2026-06-21" }
+
+      expect(response).to have_http_status(:not_found)
+      expect(JSON.parse(response.body)).to eq("error" => "Schedule not found.")
+      expect(Schedule.find_by(date: Date.new(2026, 6, 21))).to be_nil
+      expect(ScheduleSeeder).not_to have_received(:new)
+    end
+
+    it "rejects missing request dates without deleting an Appointment" do
+      schedule = create(:schedule)
+      original_appointments = schedule.appointments
+
+      delete "/api/schedule/#{original_appointments.first.fetch("id")}"
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)).to eq(
+        "error" => "Missing or invalid `date` query param (expected YYYY-MM-DD)."
+      )
+      expect(schedule.reload.appointments).to eq(original_appointments)
+    end
+
+    it "rejects malformed request dates without deleting an Appointment" do
+      schedule = create(:schedule)
+      original_appointments = schedule.appointments
+
+      delete "/api/schedule/#{original_appointments.first.fetch("id")}", params: { date: "tomorrow" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)).to eq(
+        "error" => "Missing or invalid `date` query param (expected YYYY-MM-DD)."
+      )
+      expect(schedule.reload.appointments).to eq(original_appointments)
+    end
+
+    it "rejects impossible request dates without deleting an Appointment" do
+      schedule = create(:schedule)
+      original_appointments = schedule.appointments
+
+      delete "/api/schedule/#{original_appointments.first.fetch("id")}", params: { date: "2026-02-30" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)).to eq(
+        "error" => "Missing or invalid `date` query param (expected YYYY-MM-DD)."
+      )
+      expect(schedule.reload.appointments).to eq(original_appointments)
+    end
+  end
 end

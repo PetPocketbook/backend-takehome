@@ -1,7 +1,5 @@
 module Api
   class SchedulesController < ApplicationController
-    DATE_PATTERN = /\A\d{4}-\d{2}-\d{2}\z/
-
     def show
       result = ScheduleLoader.new(date: params[:date]).call
 
@@ -23,20 +21,24 @@ module Api
     end
 
     def destroy
-      render json: { error: "Not implemented." }, status: :not_implemented
+      parsed_date = ScheduleDate.parse(params[:date])
+
+      if parsed_date.success?
+        schedule = Schedule.find_for_date(parsed_date.date)
+      else
+        render json: { error: parsed_date.error }, status: parsed_date.status
+        return
+      end
+
+      if schedule
+        schedule.remove_appointment!(params[:appointment_id])
+        render json: schedule_payload(schedule)
+      else
+        render json: { error: "Schedule not found." }, status: :not_found
+      end
     end
 
     private
-
-    def required_date_param
-      date = params[:date].to_s
-      unless date.match?(DATE_PATTERN)
-        render json: { error: "Missing or invalid `date` query param (expected YYYY-MM-DD)." }, status: :bad_request
-        return nil
-      end
-
-      date
-    end
 
     def appointments_from_params
       permitted = params.permit(appointments: [:id, :time, { pet: [:name, :type] }])

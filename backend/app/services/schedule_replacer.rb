@@ -1,6 +1,4 @@
 class ScheduleReplacer
-  DATE_PATTERN = /\A\d{4}-\d{2}-\d{2}\z/
-
   Result = Struct.new(:success, :schedule, :error, :status, keyword_init: true) do
     def success?
       success
@@ -13,7 +11,7 @@ class ScheduleReplacer
   end
 
   def call
-    return invalid_date_result unless valid_date?
+    return invalid_date_result unless parsed_date.success?
     return invalid_appointments_result if appointment_error
 
     Result.new(success: true, schedule: replace_schedule)
@@ -23,10 +21,8 @@ class ScheduleReplacer
 
   attr_reader :raw_date, :appointments
 
-  def valid_date?
-    raw_date.to_s.match?(DATE_PATTERN) && Date.iso8601(raw_date.to_s)
-  rescue ArgumentError
-    false
+  def parsed_date
+    @parsed_date ||= ScheduleDate.parse(raw_date)
   end
 
   def appointment_error
@@ -34,16 +30,12 @@ class ScheduleReplacer
   end
 
   def replace_schedule
-    schedule = Schedule.find_or_initialize_by(date: raw_date)
+    schedule = Schedule.find_or_initialize_by(date: parsed_date.date)
     schedule.replace_appointments(appointments)
   end
 
   def invalid_date_result
-    Result.new(
-      success: false,
-      error: "Missing or invalid `date` query param (expected YYYY-MM-DD).",
-      status: :bad_request
-    )
+    Result.new(success: false, error: parsed_date.error, status: parsed_date.status)
   end
 
   def invalid_appointments_result
