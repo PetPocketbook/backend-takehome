@@ -3,15 +3,13 @@ module Api
     DATE_PATTERN = /\A\d{4}-\d{2}-\d{2}\z/
 
     def show
-      date = required_date_param
-      return unless date
+      result = ScheduleLoader.new(date: params[:date]).call
 
-      schedule = Schedule.find_for_date(date)
-      schedule ||= ScheduleSeeder.new(date: date).call
-
-      render json: schedule_payload(schedule)
-    rescue PetPocketbook::Client::UpstreamError => e
-      render json: { error: e.message }, status: e.status
+      if result.success?
+        render json: schedule_payload(result.schedule)
+      else
+        render json: { error: result.error }, status: result.status
+      end
     end
 
     def update
