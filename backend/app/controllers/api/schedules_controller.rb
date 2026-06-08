@@ -13,19 +13,13 @@ module Api
     end
 
     def update
-      date = required_date_param
-      return unless date
+      result = ScheduleReplacer.new(date: params[:date], appointments: appointments_from_params).call
 
-      appointments = appointments_from_params
-      error_message = ScheduleAppointmentValidator.error_message(appointments)
-      if error_message
-        render json: { error: error_message }, status: :bad_request
-        return
+      if result.success?
+        render json: schedule_payload(result.schedule)
+      else
+        render json: { error: result.error }, status: result.status
       end
-
-      schedule = Schedule.find_or_initialize_by(date: Date.current)
-      schedule.replace_appointments(appointments)
-      render json: schedule_payload(schedule)
     end
 
     def destroy
@@ -45,11 +39,8 @@ module Api
     end
 
     def appointments_from_params
-      Array(params[:appointments]).map do |appointment|
-        raw = appointment.respond_to?(:to_unsafe_h) ? appointment.to_unsafe_h : appointment
-        raw = raw.deep_stringify_keys if raw.respond_to?(:deep_stringify_keys)
-        raw
-      end
+      permitted = params.permit(appointments: [:id, :time, { pet: [:name, :type] }])
+      permitted[:appointments]&.map(&:to_h)
     end
 
     def schedule_payload(schedule)

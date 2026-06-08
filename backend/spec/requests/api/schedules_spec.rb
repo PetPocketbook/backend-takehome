@@ -107,4 +107,178 @@ RSpec.describe "Schedules API", type: :request do
       expect(Schedule.find_by(date: Date.new(2026, 6, 11))).to be_nil
     end
   end
+
+  describe "PUT /api/schedule" do
+    it "replaces the Schedule for the requested date" do
+      today_schedule = create(:schedule, date: Date.current)
+      viewed_schedule = create(:schedule, date: Date.new(2026, 6, 12))
+      replacement_appointments = [
+        {
+          "id" => "moved-appointment",
+          "pet" => { "name" => "Briar", "type" => "Hedgehog" },
+          "time" => "1:00 PM"
+        }
+      ]
+
+      put "/api/schedule", params: { date: "2026-06-12", appointments: replacement_appointments }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to eq(
+        "date" => "2026-06-12",
+        "appointments" => replacement_appointments
+      )
+      expect(viewed_schedule.reload.appointments).to eq(replacement_appointments)
+      expect(today_schedule.reload.appointments).not_to eq(replacement_appointments)
+    end
+
+    it "creates a Schedule for the requested date from a valid replacement" do
+      replacement_appointments = [
+        {
+          "id" => "new-schedule-appointment",
+          "pet" => { "name" => "Milla", "type" => "Rodent" },
+          "time" => "5:00 PM"
+        }
+      ]
+
+      put "/api/schedule", params: { date: "2026-06-13", appointments: replacement_appointments }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to eq(
+        "date" => "2026-06-13",
+        "appointments" => replacement_appointments
+      )
+      expect(Schedule.find_by!(date: Date.new(2026, 6, 13)).appointments).to eq(replacement_appointments)
+    end
+
+    it "preserves submitted Appointment IDs when replacing a Schedule" do
+      create(:schedule, date: Date.new(2026, 6, 17))
+      replacement_appointments = [
+        {
+          "id" => "submitted-stable-id",
+          "pet" => { "name" => "Briar", "type" => "Hedgehog" },
+          "time" => "2:00 PM"
+        }
+      ]
+
+      put "/api/schedule", params: { date: "2026-06-17", appointments: replacement_appointments }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body).fetch("appointments")).to eq(replacement_appointments)
+      expect(Schedule.find_by!(date: Date.new(2026, 6, 17)).appointments).to eq(replacement_appointments)
+    end
+
+    it "rejects missing request dates without replacing a Schedule" do
+      replacement_appointments = [
+        {
+          "id" => "missing-date-appointment",
+          "pet" => { "name" => "Milla", "type" => "Rodent" },
+          "time" => "5:00 PM"
+        }
+      ]
+
+      put "/api/schedule", params: { appointments: replacement_appointments }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)).to eq(
+        "error" => "Missing or invalid `date` query param (expected YYYY-MM-DD)."
+      )
+      expect(Schedule.count).to eq(0)
+    end
+
+    it "rejects malformed request dates without replacing a Schedule" do
+      replacement_appointments = [
+        {
+          "id" => "malformed-date-appointment",
+          "pet" => { "name" => "Milla", "type" => "Rodent" },
+          "time" => "5:00 PM"
+        }
+      ]
+
+      put "/api/schedule", params: { date: "tomorrow", appointments: replacement_appointments }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)).to eq(
+        "error" => "Missing or invalid `date` query param (expected YYYY-MM-DD)."
+      )
+      expect(Schedule.count).to eq(0)
+    end
+
+    it "rejects impossible request dates without replacing a Schedule" do
+      replacement_appointments = [
+        {
+          "id" => "invalid-date-appointment",
+          "pet" => { "name" => "Milla", "type" => "Rodent" },
+          "time" => "5:00 PM"
+        }
+      ]
+
+      put "/api/schedule", params: { date: "2026-02-30", appointments: replacement_appointments }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)).to eq(
+        "error" => "Missing or invalid `date` query param (expected YYYY-MM-DD)."
+      )
+      expect(Schedule.count).to eq(0)
+    end
+
+    it "rejects invalid appointment payloads without replacing a Schedule" do
+      schedule = create(:schedule, date: Date.new(2026, 6, 14))
+      original_appointments = schedule.appointments
+      invalid_appointments = [
+        {
+          "id" => "invalid-appointment",
+          "pet" => { "name" => "Milla", "type" => "Dragon" },
+          "time" => "5:00 PM"
+        }
+      ]
+
+      put "/api/schedule", params: { date: "2026-06-14", appointments: invalid_appointments }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)).to eq(
+        "error" => 'Appointment invalid-appointment pet.type "Dragon" is not allowed.'
+      )
+      expect(schedule.reload.appointments).to eq(original_appointments)
+    end
+
+    it "persists only permitted appointment fields from submitted appointments" do
+      submitted_appointments = [
+        {
+          "id" => "permitted-appointment",
+          "pet" => { "name" => "Briar", "type" => "Hedgehog", "secret" => "ignored" },
+          "time" => "12:30 PM",
+          "secret" => "ignored"
+        }
+      ]
+      permitted_appointments = [
+        {
+          "id" => "permitted-appointment",
+          "pet" => { "name" => "Briar", "type" => "Hedgehog" },
+          "time" => "12:30 PM"
+        }
+      ]
+
+      put "/api/schedule", params: { date: "2026-06-15", appointments: submitted_appointments }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to eq(
+        "date" => "2026-06-15",
+        "appointments" => permitted_appointments
+      )
+      expect(Schedule.find_by!(date: Date.new(2026, 6, 15)).appointments).to eq(permitted_appointments)
+    end
+
+    it "rejects requests without an appointments array" do
+      schedule = create(:schedule, date: Date.new(2026, 6, 16))
+      original_appointments = schedule.appointments
+
+      put "/api/schedule", params: { date: "2026-06-16" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(JSON.parse(response.body)).to eq(
+        "error" => "Body must include an `appointments` array."
+      )
+      expect(schedule.reload.appointments).to eq(original_appointments)
+    end
+  end
 end
