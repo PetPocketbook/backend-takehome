@@ -11,7 +11,7 @@ class Schedule < ApplicationRecord
   end
 
   def appointment_records
-    raise NotImplementedError
+    appointments.map { |appointment| Appointment.from_storage(appointment) }
   end
 
   def replace_appointments(appointment_values)
@@ -22,7 +22,7 @@ class Schedule < ApplicationRecord
   end
 
   def remove_appointment!(appointment_id)
-    appointments = appointments.reject { |appointment| appointment["id"] == appointment_id }
+    self.appointments = appointments.reject { |appointment| appointment["id"] == appointment_id }
     save!
     self
   end

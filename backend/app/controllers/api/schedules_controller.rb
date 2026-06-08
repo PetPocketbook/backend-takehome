@@ -1,57 +1,48 @@
 module Api
   class SchedulesController < ApplicationController
-    DATE_PATTERN = /\A\d{4}-\d{2}-\d{2}\z/
-
     def show
-      date = required_date_param
-      return unless date
+      result = ScheduleLoader.new(date: params[:date]).call
 
-      schedule = Schedule.find_for_date(date)
-      schedule ||= ScheduleSeeder.new(date: date).call
-
-      render json: schedule_payload(schedule)
-    rescue PetPocketbook::Client::UpstreamError => e
-      render json: { error: e.message }, status: e.status
+      if result.success?
+        render json: schedule_payload(result.schedule)
+      else
+        render json: { error: result.error }, status: result.status
+      end
     end
 
     def update
-      date = required_date_param
-      return unless date
+      result = ScheduleReplacer.new(date: params[:date], appointments: appointments_from_params).call
 
-      appointments = appointments_from_params
-      error_message = ScheduleAppointmentValidator.error_message(appointments)
-      if error_message
-        render json: { error: error_message }, status: :bad_request
-        return
+      if result.success?
+        render json: schedule_payload(result.schedule)
+      else
+        render json: { error: result.error }, status: result.status
       end
-
-      schedule = Schedule.find_or_initialize_by(date: Date.current)
-      schedule.replace_appointments(appointments)
-      render json: schedule_payload(schedule)
     end
 
     def destroy
-      render json: { error: "Not implemented." }, status: :not_implemented
+      parsed_date = ScheduleDate.parse(params[:date])
+
+      if parsed_date.success?
+        schedule = Schedule.find_for_date(parsed_date.date)
+      else
+        render json: { error: parsed_date.error }, status: parsed_date.status
+        return
+      end
+
+      if schedule
+        schedule.remove_appointment!(params[:appointment_id])
+        render json: schedule_payload(schedule)
+      else
+        render json: { error: "Schedule not found." }, status: :not_found
+      end
     end
 
     private
 
-    def required_date_param
-      date = params[:date].to_s
-      unless date.match?(DATE_PATTERN)
-        render json: { error: "Missing or invalid `date` query param (expected YYYY-MM-DD)." }, status: :bad_request
-        return nil
-      end
-
-      date
-    end
-
     def appointments_from_params
-      Array(params[:appointments]).map do |appointment|
-        raw = appointment.respond_to?(:to_unsafe_h) ? appointment.to_unsafe_h : appointment
-        raw = raw.deep_stringify_keys if raw.respond_to?(:deep_stringify_keys)
-        raw
-      end
+      permitted = params.permit(appointments: [:id, :time, { pet: [:name, :type] }])
+      permitted[:appointments]&.map(&:to_h)
     end
 
     def schedule_payload(schedule)
